@@ -9,10 +9,8 @@ import {
   Delete,
   Query,
   HttpStatus,
-  HttpException,
   Logger,
 } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   ApiTags,
   ApiOperation,
@@ -61,6 +59,55 @@ export class RoutesController {
         'Failed to create route',
         error.message,
         HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  // Add this to your routes.controller.ts
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search routes by text' })
+  @ApiQuery({
+    name: 'searchText',
+    required: true,
+    description: 'Text to search for in routes',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of results per page',
+  })
+  @SwaggerApiResponse({
+    status: 200,
+    description: 'Routes found successfully',
+    type: ApiResponse,
+  })
+  async searchRoutes(
+    @Query('searchText') searchText: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ): Promise<ApiResponse<Route[]>> {
+    try {
+      const routes = await this.routesService.searchRoutes(searchText, {
+        limit: +limit,
+        page: +page,
+      });
+
+      return ApiResponse.success(routes, 'Routes found successfully');
+    } catch (error) {
+      this.logger.error(
+        `Error searching routes: ${error.message}`,
+        error.stack,
+      );
+      return ApiResponse.error(
+        'Failed to search routes',
+        error.message,
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -205,102 +252,6 @@ export class RoutesController {
         error.message,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
-    }
-  }
-
-  // Microservice message patterns
-  @MessagePattern('route.create')
-  async createRoute(
-    @Payload() data: CreateRouteDto,
-  ): Promise<ApiResponse<Route>> {
-    try {
-      const result = await this.routesService.create(data);
-      return ApiResponse.success(result, 'Route created successfully');
-    } catch (error) {
-      this.logger.error(
-        `Microservice error creating route: ${error.message}`,
-        error.stack,
-      );
-      return ApiResponse.error('Failed to create route', error.message);
-    }
-  }
-
-  @MessagePattern('route.findAll')
-  async findAllRoutes(@Payload() data: any): Promise<ApiResponse<Route[]>> {
-    try {
-      const routes = await this.routesService.findAll(data);
-      return ApiResponse.success(routes, 'Routes retrieved successfully');
-    } catch (error) {
-      this.logger.error(
-        `Microservice error finding routes: ${error.message}`,
-        error.stack,
-      );
-      return ApiResponse.error('Failed to fetch routes', error.message);
-    }
-  }
-
-  @MessagePattern('route.findOne')
-  async findOneRoute(@Payload() id: string): Promise<ApiResponse<Route>> {
-    try {
-      const route = await this.routesService.findOne(id);
-      if (!route) {
-        return ApiResponse.error(
-          'Route not found',
-          `No route found with ID: ${id}`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-      return ApiResponse.success(route, 'Route retrieved successfully');
-    } catch (error) {
-      this.logger.error(
-        `Microservice error finding route: ${error.message}`,
-        error.stack,
-      );
-      return ApiResponse.error('Failed to fetch route', error.message);
-    }
-  }
-
-  @MessagePattern('route.update')
-  async updateRoute(
-    @Payload() data: { id: string; updateData: UpdateRouteDto },
-  ): Promise<ApiResponse<Route>> {
-    try {
-      const route = await this.routesService.update(data.id, data.updateData);
-      if (!route) {
-        return ApiResponse.error(
-          'Route not found',
-          `No route found with ID: ${data.id}`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-      return ApiResponse.success(route, 'Route updated successfully');
-    } catch (error) {
-      this.logger.error(
-        `Microservice error updating route: ${error.message}`,
-        error.stack,
-      );
-      return ApiResponse.error('Failed to update route', error.message);
-    }
-  }
-
-  @MessagePattern('route.remove')
-  async removeRoute(@Payload() id: string): Promise<ApiResponse<Route>> {
-    try {
-      const route = await this.routesService.remove(id);
-      if (!route) {
-        return ApiResponse.error(
-          'Route not found',
-          `No route found with ID: ${id}`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
-      return ApiResponse.success(route, 'Route deleted successfully');
-    } catch (error) {
-      this.logger.error(
-        `Microservice error deleting route: ${error.message}`,
-        error.stack,
-      );
-      return ApiResponse.error('Failed to delete route', error.message);
     }
   }
 }

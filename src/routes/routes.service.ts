@@ -124,46 +124,48 @@ export class RoutesService {
     }
   }
 
-  // Additional methods can be added here
-
-  async findByTags(tags: string[]): Promise<Route[]> {
+  async searchRoutes(
+    searchText: string,
+    filters: { limit?: number; page?: number },
+  ): Promise<any> {
     try {
-      this.logger.log(`Finding routes by tags: ${tags.join(', ')}`);
-      return await this.routeModel
-        .find({ tags: { $in: tags } })
-        .sort({ createdAt: -1 })
-        .exec();
-    } catch (error) {
-      this.logger.error(
-        `Error finding routes by tags: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  async countRoutes(filters: {
-    userId?: string;
-    favorites?: boolean;
-  }): Promise<number> {
-    try {
-      const { userId, favorites } = filters;
-      const query: any = {};
-
-      if (userId) {
-        query.userId = userId;
-      }
-
-      if (favorites !== undefined) {
-        query.isFavorite = favorites;
-      }
+      const { limit = 10, page = 1 } = filters;
+      const skip = (page - 1) * limit;
 
       this.logger.log(
-        `Counting routes with filters: ${JSON.stringify(filters)}`,
+        `Searching routes with text: "${searchText}" and filters: ${JSON.stringify(filters)}`,
       );
-      return await this.routeModel.countDocuments(query).exec();
+
+      // Create search query
+      const searchQuery = {
+        $or: [
+          { routeId: { $regex: searchText, $options: 'i' } },
+          { name: { $regex: searchText, $options: 'i' } },
+          { 'origin.name': { $regex: searchText, $options: 'i' } },
+          { 'destination.name': { $regex: searchText, $options: 'i' } },
+          { 'waypoints.name': { $regex: searchText, $options: 'i' } },
+        ],
+      };
+
+      const [total, routes] = await Promise.all([
+        this.routeModel.countDocuments(searchQuery).exec(),
+        this.routeModel
+          .find(searchQuery)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+      ]);
+
+      return ApiResponse.success(
+        { routes, total },
+        'Routes  retrieved successfully',
+      );
     } catch (error) {
-      this.logger.error(`Error counting routes: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error searching routes: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
